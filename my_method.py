@@ -8,16 +8,16 @@ def read_pcd(filename):
     pcd = o3d.io.read_point_cloud(filename)
     return pcd
 
-def downsample_pcd(pcd, voxel_size=0.4):
+def downsample_pcd(pcd, voxel_size=0.3):
     downsampled_pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
     return downsampled_pcd
 
-def remove_outlier(pcd, nb_points=6, radius=1.0):
+def remove_outlier(pcd, nb_points=4, radius=1.0):
     cl, ind = pcd.remove_radius_outlier(nb_points=nb_points, radius=radius)
     ror_pcd = pcd.select_by_index(ind)
     return ror_pcd
 
-def segment_plane(pcd, distance_threshold=0.1, ransac_n=3, num_iterations=2000):    
+def segment_plane(pcd, distance_threshold=0.3, ransac_n=5, num_iterations=2000):    
     plane_model, inliers = pcd.segment_plane(distance_threshold=distance_threshold,
                                              ransac_n=ransac_n,
                                              num_iterations=num_iterations)
@@ -38,26 +38,40 @@ def visualize_clusters(pcd, labels):
     pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
     return pcd
 
-def filter_clusters(pcd, labels, min_points_in_cluster=5, max_points_in_cluster=20, min_z_value=-1.0, max_z_value=1.8, min_height=1, max_height=2, max_distance=30.0):
+def filter_clusters(pcd, labels, min_points_in_cluster=7, max_points_in_cluster=30, min_z_value=-2, max_z_value=3, min_height=0.2, max_height=1.8, max_distance=30.0):
     bboxes = []
     for i in range(labels.max() + 1):
         cluster_indices = np.where(labels == i)[0]
         if min_points_in_cluster <= len(cluster_indices) <= max_points_in_cluster:
             cluster_pcd = pcd.select_by_index(cluster_indices)
             points = np.asarray(cluster_pcd.points)
+
+            x_values = points[:, 0]  # X값 추출
+            y_values = points[:, 1]  # Y값 추출
             z_values = points[:, 2]  # Z값 추출
+
+            x_min = x_values.min()
+            x_max = x_values.max()
+            y_min = y_values.min()
+            y_max = y_values.max()
             z_min = z_values.min()
             z_max = z_values.max()
             
-            
-            volume = np.prod(cluster_pcd.get_axis_aligned_bounding_box().get_extent())
-            if volume < 0.2 and volume >= 0.05: # volumn check
-                if min_z_value <= z_min and z_max:
-                    if z_max - z_min < min_height or z_max - z_min > max_height:
-                        bbox = cluster_pcd.get_axis_aligned_bounding_box()
-                        bbox.color = (1, 0, 0) 
-                        bboxes.append(bbox)
+            shourlder_width = x_max - x_min
+            chest_depth = y_max - y_min
+            height = z_max - z_min
 
+            volume = np.prod(cluster_pcd.get_axis_aligned_bounding_box().get_extent())
+            if volume < 0.3 and volume >= 0.03: # volume check
+                if height >= 0.7 *shourlder_width and height >= 0.7 *chest_depth: # human shape check1
+                    if height / shourlder_width <= 1.7 or height / chest_depth <= 1.7: # human shape check2
+                        if min_z_value <= z_min and z_max <= max_z_value: # z value check
+                            if z_min <= 3: # floating object check
+                                if height >= min_height and height <= max_height: # height check
+                                    bbox = cluster_pcd.get_axis_aligned_bounding_box()
+                                    bbox.color = (1, 0, 0) 
+                                    bboxes.append(bbox)
+    print(f"Number of bounding boxes: {len(bboxes)}")
     return bboxes
 
 def main(target):
@@ -69,10 +83,9 @@ def main(target):
     
     start_time = time.time()
     first = True
-    geometries = []  # 추가된 bounding box들을 추적
 
     camera_params = None
-    for file_path in file_paths[150:]:
+    for file_path in file_paths[:]:
         original_pcd = read_pcd(f"{target}/{file_path}")
         downsampled_pcd = downsample_pcd(original_pcd)
         ror_pcd = remove_outlier(downsampled_pcd)
@@ -91,7 +104,7 @@ def main(target):
             while vis.poll_events():
                 vis.update_renderer()
                 camera_params = view_ctl.convert_to_pinhole_camera_parameters()
-                if time.time() - start_time > 20:
+                if time.time() - start_time > 10:
                     break
         else:
             vis.clear_geometries()
@@ -111,10 +124,10 @@ def main(target):
 
 if __name__ == "__main__":
     #main(target="test_data/")
-    main(target="data/01_straight_walk/pcd")
+    #main(target="data/01_straight_walk/pcd")
     #main(target="data/02_straight_duck_walk/pcd")
     #main(target="data/03_straight_crawl/pcd")
     #main(target="data/04_zigzag_walk/pcd")
     #main(target="data/05_straight_duck_walk/pcd")
     #main(target="data/06_straight_crawl/pcd")
-    #main(target="data/07_straight_walk/pcd")
+    main(target="data/07_straight_walk/pcd")
