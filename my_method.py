@@ -8,7 +8,7 @@ def read_pcd(filename):
     pcd = o3d.io.read_point_cloud(filename)
     return pcd
 
-def downsample_pcd(pcd, voxel_size=0.3):
+def downsample_pcd(pcd, voxel_size=0.4):
     downsampled_pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
     return downsampled_pcd
 
@@ -74,6 +74,7 @@ def main(target):
         non_road_pcd = visualize_clusters(non_road_pcd, labels)
         bboxes = filter_clusters(non_road_pcd, labels)
 
+        vis.add_geometry(road_pcd)  # 도로 영역 추가
         # 새로운 bounding box 추가
         if first_call:
             for bbox in bboxes:
