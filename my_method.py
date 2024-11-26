@@ -59,10 +59,14 @@ def main(target):
     file_paths = os.listdir(target)
     file_paths.sort()
     vis = o3d.visualization.Visualizer()
-    vis.create_window()
+    vis.create_window(width=800, height=600)
+    view_ctl = vis.get_view_control()
+    
     start_time = time.time()
     first_call = True
     geometries = []  # 추가된 bounding box들을 추적
+
+    camera_params = None
     for file_path in file_paths:
         original_pcd = read_pcd(f"{target}/{file_path}")
         downsampled_pcd = downsample_pcd(original_pcd)
@@ -74,24 +78,21 @@ def main(target):
         non_road_pcd = visualize_clusters(non_road_pcd, labels)
         bboxes = filter_clusters(non_road_pcd, labels)
 
-        vis.add_geometry(road_pcd)  # 도로 영역 추가
-        # 새로운 bounding box 추가
         if first_call:
-            for bbox in bboxes:
-                vis.add_geometry(bbox)  # 각 bounding box 개별적으로 추가
-                geometries.append(bbox)  # 추가된 bbox 추적
+            vis.add_geometry(non_road_pcd)
             first_call = False
+            while vis.poll_events():
+                vis.update_renderer()
+                camera_params = view_ctl.convert_to_pinhole_camera_parameters()
+                if time.time() - start_time > 10:
+                    break
         else:
-            for geom in geometries:  # 이전 bounding box 삭제
-                vis.remove_geometry(geom)
-            geometries.clear()  # 리스트 초기화
-            for bbox in bboxes:  # 새로운 bounding box 추가
-                vis.add_geometry(bbox)
-                geometries.append(bbox)
+            vis.clear_geometries()
+            vis.add_geometry(non_road_pcd)
         
-        time.sleep(0.1)
-        if not vis.poll_events():
-            break
+
+        view_ctl.convert_from_pinhole_camera_parameters(camera_params, allow_arbitrary=True)
+        vis.poll_events()
         vis.update_renderer()
         print("Rendered")
     print(f"Elapsed time: {time.time() - start_time:.2f} seconds")
@@ -100,5 +101,10 @@ def main(target):
 
 
 if __name__ == "__main__":
-    main(target="data/01_straight_walk/pcd")
-
+    #main(target="data/01_straight_walk/pcd")
+    main(target="data/02_straight_duck_walk/pcd")
+    #main(target="data/03_straight_crawl/pcd")
+    #main(target="data/04_zigzag_walk/pcd")
+    #main(target="data/05_straight_duck_walk/pcd")
+    #main(target="data/06_straight_crawl/pcd")
+    #main(target="data/07_straight_walk/pcd")
