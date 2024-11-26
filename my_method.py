@@ -27,32 +27,37 @@ def select_by_index(pcd, inliers, invert=False):
     selected_pcd = pcd.select_by_index(inliers, invert=invert)
     return selected_pcd
 
-def cluster_dbscan(pcd, eps=0.3, min_points=10):   
+def cluster_dbscan(pcd, eps=0.5, min_points=5):   
     labels = np.array(pcd.cluster_dbscan(eps=eps, min_points=min_points))
     return labels
 
 def visualize_clusters(pcd, labels):
     max_label = labels.max()
-    colors = plt.get_cmap("tab20")(labels / (max_label + 1 if max_label > 0 else 1))
+    colors = plt.get_cmap("tab20")(labels / (max_label if max_label > 0 else 1))
     colors[labels < 0] = 0
     pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
     return pcd
 
-def filter_clusters(pcd, labels, min_points_in_cluster=5, max_points_in_cluster=40, min_z_value=-1.5, max_z_value=2.5, min_height=0.5, max_height=2.0, max_distance=30.0):
+def filter_clusters(pcd, labels, min_points_in_cluster=5, max_points_in_cluster=20, min_z_value=-1.0, max_z_value=1.8, min_height=1, max_height=2, max_distance=30.0):
     bboxes = []
     for i in range(labels.max() + 1):
-        points = np.asarray(pcd.points)[labels == i]
-        if len(points) < min_points_in_cluster or len(points) > max_points_in_cluster:
-            continue
-        min_z = np.min(points[:, 2])
-        max_z = np.max(points[:, 2])
-        if min_z < min_z_value or max_z > max_z_value or max_z - min_z < min_height or max_z - min_z > max_height:
-            continue
-        center = np.mean(points, axis=0)
-        if np.linalg.norm(center[:2]) > max_distance:
-            continue
-        bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=np.min(points, axis=0), max_bound=np.max(points, axis=0))
-        bboxes.append(bbox)
+        cluster_indices = np.where(labels == i)[0]
+        if min_points_in_cluster <= len(cluster_indices) <= max_points_in_cluster:
+            cluster_pcd = pcd.select_by_index(cluster_indices)
+            points = np.asarray(cluster_pcd.points)
+            z_values = points[:, 2]  # Z값 추출
+            z_min = z_values.min()
+            z_max = z_values.max()
+            
+            
+            volume = np.prod(cluster_pcd.get_axis_aligned_bounding_box().get_extent())
+            if volume < 0.2 and volume >= 0.05: # volumn check
+                if min_z_value <= z_min and z_max:
+                    if z_max - z_min < min_height or z_max - z_min > max_height:
+                        bbox = cluster_pcd.get_axis_aligned_bounding_box()
+                        bbox.color = (1, 0, 0) 
+                        bboxes.append(bbox)
+
     return bboxes
 
 def main(target):
@@ -63,11 +68,11 @@ def main(target):
     view_ctl = vis.get_view_control()
     
     start_time = time.time()
-    first_call = True
+    first = True
     geometries = []  # 추가된 bounding box들을 추적
 
     camera_params = None
-    for file_path in file_paths:
+    for file_path in file_paths[150:]:
         original_pcd = read_pcd(f"{target}/{file_path}")
         downsampled_pcd = downsample_pcd(original_pcd)
         ror_pcd = remove_outlier(downsampled_pcd)
@@ -78,17 +83,21 @@ def main(target):
         non_road_pcd = visualize_clusters(non_road_pcd, labels)
         bboxes = filter_clusters(non_road_pcd, labels)
 
-        if first_call:
+        if first:
             vis.add_geometry(non_road_pcd)
-            first_call = False
+            first = False
+            for bbox in bboxes:
+                vis.add_geometry(bbox)
             while vis.poll_events():
                 vis.update_renderer()
                 camera_params = view_ctl.convert_to_pinhole_camera_parameters()
-                if time.time() - start_time > 10:
+                if time.time() - start_time > 20:
                     break
         else:
             vis.clear_geometries()
             vis.add_geometry(non_road_pcd)
+            for bbox in bboxes:
+                vis.add_geometry(bbox)
         
 
         view_ctl.convert_from_pinhole_camera_parameters(camera_params, allow_arbitrary=True)
@@ -101,8 +110,9 @@ def main(target):
 
 
 if __name__ == "__main__":
-    #main(target="data/01_straight_walk/pcd")
-    main(target="data/02_straight_duck_walk/pcd")
+    #main(target="test_data/")
+    main(target="data/01_straight_walk/pcd")
+    #main(target="data/02_straight_duck_walk/pcd")
     #main(target="data/03_straight_crawl/pcd")
     #main(target="data/04_zigzag_walk/pcd")
     #main(target="data/05_straight_duck_walk/pcd")
