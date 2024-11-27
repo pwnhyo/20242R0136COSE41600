@@ -91,7 +91,7 @@ def filter_clusters(pcd, labels, min_points_in_cluster=10, max_points_in_cluster
 
 dangerous_xyz = []
 
-def filter_bboxes(pcd, bboxes, prev_bboxes, flag, param=1):
+def filter_bboxes(pcd, bboxes, prev_bboxes, flag, param=0.5):
     if not prev_bboxes:
         return bboxes
 
@@ -142,8 +142,6 @@ def filter_bboxes(pcd, bboxes, prev_bboxes, flag, param=1):
     print(f"Number of filtered bounding boxes: {len(filtered_bboxes)}")
     print(len(dangerous_xyz))
     return filtered_bboxes
-
-
 
 def main(target):
     file_paths = os.listdir(target)
@@ -206,10 +204,10 @@ def main(target):
 
 if __name__ == "__main__":
     #main(target="test_data/")
-    #main(target="data/01_straight_walk/pcd")
+    main(target="data/01_straight_walk/pcd")
     #main(target="data/02_straight_duck_walk/pcd")
     #main(target="data/03_straight_crawl/pcd")
-    main(target="data/04_zigzag_walk/pcd")
+    #main(target="data/04_zigzag_walk/pcd")
     #main(target="data/05_straight_duck_walk/pcd")
     #main(target="data/06_straight_crawl/pcd")
     #main(target="data/07_straight_walk/pcd")
